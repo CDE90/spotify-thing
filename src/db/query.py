@@ -2,7 +2,9 @@
 # versions:
 #   sqlc v1.27.0
 # source: query.sql
-from typing import AsyncIterator, Iterator, Optional
+import dataclasses
+import datetime
+from typing import Any, AsyncIterator, Iterator, Optional
 
 import sqlalchemy
 import sqlalchemy.ext.asyncio
@@ -10,117 +12,793 @@ import sqlalchemy.ext.asyncio
 from db import models
 
 
-CREATE_AUTHOR = """-- name: create_author \\:one
-INSERT INTO authors (
-  name, bio
-) VALUES (
-  :p1, :p2
-)
-RETURNING id, name, bio
+ADD_ARTIST_TO_ALBUM = """-- name: add_artist_to_album \\:exec
+INSERT INTO album_artists (album_id, artist_id)
+VALUES (:p1, :p2)
+ON CONFLICT (album_id, artist_id) DO NOTHING
 """
 
 
-DELETE_AUTHOR = """-- name: delete_author \\:exec
-DELETE FROM authors
+ADD_ARTIST_TO_TRACK = """-- name: add_artist_to_track \\:exec
+
+INSERT INTO track_artists (track_id, artist_id)
+VALUES (:p1, :p2)
+ON CONFLICT (track_id, artist_id) DO NOTHING
+"""
+
+
+CREATE_ALBUM = """-- name: create_album \\:one
+
+INSERT INTO albums (
+  id, name, album_type, release_date, 
+  total_tracks, images, external_urls
+) VALUES (
+  :p1, :p2, :p3, :p4, :p5, :p6, :p7
+)
+RETURNING id, name, album_type, release_date, total_tracks, images, external_urls
+"""
+
+
+@dataclasses.dataclass()
+class CreateAlbumParams:
+    id: str
+    name: str
+    album_type: Optional[str]
+    release_date: Optional[datetime.date]
+    total_tracks: Optional[int]
+    images: Optional[Any]
+    external_urls: Optional[Any]
+
+
+CREATE_ARTIST = """-- name: create_artist \\:one
+
+INSERT INTO artists (
+  id, name, external_urls, href
+) VALUES (
+  :p1, :p2, :p3, :p4
+)
+RETURNING id, name, external_urls, href
+"""
+
+
+CREATE_LISTENING_HISTORY = """-- name: create_listening_history \\:one
+
+INSERT INTO listening_history (
+  track_id, listened_at, progress_ms, 
+  context_type, context_uri, device_name, device_type
+) VALUES (
+  :p1, :p2, :p3, :p4, :p5, :p6, :p7
+)
+RETURNING id, track_id, listened_at, progress_ms, context_type, context_uri, device_name, device_type
+"""
+
+
+@dataclasses.dataclass()
+class CreateListeningHistoryParams:
+    track_id: str
+    listened_at: datetime.datetime
+    progress_ms: Optional[int]
+    context_type: Optional[str]
+    context_uri: Optional[str]
+    device_name: Optional[str]
+    device_type: Optional[str]
+
+
+CREATE_TRACK = """-- name: create_track \\:one
+
+INSERT INTO tracks (
+  id, name, album_id, duration_ms, 
+  track_number, is_explicit, popularity, uri
+) VALUES (
+  :p1, :p2, :p3, :p4, :p5, :p6, :p7, :p8
+)
+RETURNING id, name, album_id, duration_ms, track_number, is_explicit, popularity, uri
+"""
+
+
+@dataclasses.dataclass()
+class CreateTrackParams:
+    id: str
+    name: str
+    album_id: Optional[str]
+    duration_ms: Optional[int]
+    track_number: Optional[int]
+    is_explicit: Optional[bool]
+    popularity: Optional[int]
+    uri: Optional[str]
+
+
+DELETE_ALBUM = """-- name: delete_album \\:exec
+DELETE FROM albums
 WHERE id = :p1
 """
 
 
-GET_AUTHOR = """-- name: get_author \\:one
-SELECT id, name, bio FROM authors
+DELETE_ALBUM_ARTIST = """-- name: delete_album_artist \\:exec
+DELETE FROM album_artists
+WHERE album_id = :p1 AND artist_id = :p2
+"""
+
+
+DELETE_ARTIST = """-- name: delete_artist \\:exec
+DELETE FROM artists
+WHERE id = :p1
+"""
+
+
+DELETE_LISTENING_HISTORY = """-- name: delete_listening_history \\:exec
+DELETE FROM listening_history
+WHERE id = :p1
+"""
+
+
+DELETE_TRACK = """-- name: delete_track \\:exec
+DELETE FROM tracks
+WHERE id = :p1
+"""
+
+
+DELETE_TRACK_ARTIST = """-- name: delete_track_artist \\:exec
+DELETE FROM track_artists
+WHERE track_id = :p1 AND artist_id = :p2
+"""
+
+
+GET_ALBUM = """-- name: get_album \\:one
+SELECT id, name, album_type, release_date, total_tracks, images, external_urls FROM albums
 WHERE id = :p1 LIMIT 1
 """
 
 
-LIST_AUTHORS = """-- name: list_authors \\:many
-SELECT id, name, bio FROM authors
+GET_ARTIST = """-- name: get_artist \\:one
+SELECT id, name, external_urls, href FROM artists
+WHERE id = :p1 LIMIT 1
+"""
+
+
+GET_LISTENING_HISTORY = """-- name: get_listening_history \\:one
+SELECT id, track_id, listened_at, progress_ms, context_type, context_uri, device_name, device_type FROM listening_history
+WHERE id = :p1 LIMIT 1
+"""
+
+
+GET_TRACK = """-- name: get_track \\:one
+SELECT id, name, album_id, duration_ms, track_number, is_explicit, popularity, uri FROM tracks
+WHERE id = :p1 LIMIT 1
+"""
+
+
+LIST_ALBUMS = """-- name: list_albums \\:many
+SELECT id, name, album_type, release_date, total_tracks, images, external_urls FROM albums
+ORDER BY release_date DESC
+"""
+
+
+LIST_ARTISTS = """-- name: list_artists \\:many
+SELECT id, name, external_urls, href FROM artists
 ORDER BY name
 """
 
 
-UPDATE_AUTHOR = """-- name: update_author \\:exec
-UPDATE authors
-  set name = :p2,
-  bio = :p3
+LIST_LISTENING_HISTORY = """-- name: list_listening_history \\:many
+SELECT id, track_id, listened_at, progress_ms, context_type, context_uri, device_name, device_type FROM listening_history
+ORDER BY listened_at DESC
+"""
+
+
+LIST_TRACKS = """-- name: list_tracks \\:many
+SELECT id, name, album_id, duration_ms, track_number, is_explicit, popularity, uri FROM tracks
+ORDER BY name
+"""
+
+
+UPDATE_ALBUM = """-- name: update_album \\:exec
+UPDATE albums
+SET 
+  name = :p2,
+  album_type = :p3,
+  release_date = :p4,
+  total_tracks = :p5,
+  images = :p6,
+  external_urls = :p7
 WHERE id = :p1
 """
+
+
+@dataclasses.dataclass()
+class UpdateAlbumParams:
+    id: str
+    name: str
+    album_type: Optional[str]
+    release_date: Optional[datetime.date]
+    total_tracks: Optional[int]
+    images: Optional[Any]
+    external_urls: Optional[Any]
+
+
+UPDATE_ARTIST = """-- name: update_artist \\:exec
+UPDATE artists
+SET 
+  name = :p2,
+  external_urls = :p3,
+  href = :p4
+WHERE id = :p1
+"""
+
+
+UPDATE_LISTENING_HISTORY = """-- name: update_listening_history \\:exec
+UPDATE listening_history
+SET 
+  track_id = :p2,
+  listened_at = :p3,
+  progress_ms = :p4,
+  context_type = :p5,
+  context_uri = :p6,
+  device_name = :p7,
+  device_type = :p8
+WHERE id = :p1
+"""
+
+
+@dataclasses.dataclass()
+class UpdateListeningHistoryParams:
+    id: int
+    track_id: str
+    listened_at: datetime.datetime
+    progress_ms: Optional[int]
+    context_type: Optional[str]
+    context_uri: Optional[str]
+    device_name: Optional[str]
+    device_type: Optional[str]
+
+
+UPDATE_TRACK = """-- name: update_track \\:exec
+UPDATE tracks
+SET 
+  name = :p2,
+  album_id = :p3,
+  duration_ms = :p4,
+  track_number = :p5,
+  is_explicit = :p6,
+  popularity = :p7,
+  uri = :p8
+WHERE id = :p1
+"""
+
+
+@dataclasses.dataclass()
+class UpdateTrackParams:
+    id: str
+    name: str
+    album_id: Optional[str]
+    duration_ms: Optional[int]
+    track_number: Optional[int]
+    is_explicit: Optional[bool]
+    popularity: Optional[int]
+    uri: Optional[str]
 
 
 class Querier:
     def __init__(self, conn: sqlalchemy.engine.Connection):
         self._conn = conn
 
-    def create_author(self, *, name: str, bio: Optional[str]) -> Optional[models.Author]:
-        row = self._conn.execute(sqlalchemy.text(CREATE_AUTHOR), {"p1": name, "p2": bio}).first()
+    def add_artist_to_album(self, *, album_id: str, artist_id: str) -> None:
+        self._conn.execute(sqlalchemy.text(ADD_ARTIST_TO_ALBUM), {"p1": album_id, "p2": artist_id})
+
+    def add_artist_to_track(self, *, track_id: str, artist_id: str) -> None:
+        self._conn.execute(sqlalchemy.text(ADD_ARTIST_TO_TRACK), {"p1": track_id, "p2": artist_id})
+
+    def create_album(self, arg: CreateAlbumParams) -> Optional[models.Album]:
+        row = self._conn.execute(sqlalchemy.text(CREATE_ALBUM), {
+            "p1": arg.id,
+            "p2": arg.name,
+            "p3": arg.album_type,
+            "p4": arg.release_date,
+            "p5": arg.total_tracks,
+            "p6": arg.images,
+            "p7": arg.external_urls,
+        }).first()
         if row is None:
             return None
-        return models.Author(
+        return models.Album(
             id=row[0],
             name=row[1],
-            bio=row[2],
+            album_type=row[2],
+            release_date=row[3],
+            total_tracks=row[4],
+            images=row[5],
+            external_urls=row[6],
         )
 
-    def delete_author(self, *, id: int) -> None:
-        self._conn.execute(sqlalchemy.text(DELETE_AUTHOR), {"p1": id})
-
-    def get_author(self, *, id: int) -> Optional[models.Author]:
-        row = self._conn.execute(sqlalchemy.text(GET_AUTHOR), {"p1": id}).first()
+    def create_artist(self, *, id: str, name: str, external_urls: Optional[Any], href: Optional[str]) -> Optional[models.Artist]:
+        row = self._conn.execute(sqlalchemy.text(CREATE_ARTIST), {
+            "p1": id,
+            "p2": name,
+            "p3": external_urls,
+            "p4": href,
+        }).first()
         if row is None:
             return None
-        return models.Author(
+        return models.Artist(
             id=row[0],
             name=row[1],
-            bio=row[2],
+            external_urls=row[2],
+            href=row[3],
         )
 
-    def list_authors(self) -> Iterator[models.Author]:
-        result = self._conn.execute(sqlalchemy.text(LIST_AUTHORS))
+    def create_listening_history(self, arg: CreateListeningHistoryParams) -> Optional[models.ListeningHistory]:
+        row = self._conn.execute(sqlalchemy.text(CREATE_LISTENING_HISTORY), {
+            "p1": arg.track_id,
+            "p2": arg.listened_at,
+            "p3": arg.progress_ms,
+            "p4": arg.context_type,
+            "p5": arg.context_uri,
+            "p6": arg.device_name,
+            "p7": arg.device_type,
+        }).first()
+        if row is None:
+            return None
+        return models.ListeningHistory(
+            id=row[0],
+            track_id=row[1],
+            listened_at=row[2],
+            progress_ms=row[3],
+            context_type=row[4],
+            context_uri=row[5],
+            device_name=row[6],
+            device_type=row[7],
+        )
+
+    def create_track(self, arg: CreateTrackParams) -> Optional[models.Track]:
+        row = self._conn.execute(sqlalchemy.text(CREATE_TRACK), {
+            "p1": arg.id,
+            "p2": arg.name,
+            "p3": arg.album_id,
+            "p4": arg.duration_ms,
+            "p5": arg.track_number,
+            "p6": arg.is_explicit,
+            "p7": arg.popularity,
+            "p8": arg.uri,
+        }).first()
+        if row is None:
+            return None
+        return models.Track(
+            id=row[0],
+            name=row[1],
+            album_id=row[2],
+            duration_ms=row[3],
+            track_number=row[4],
+            is_explicit=row[5],
+            popularity=row[6],
+            uri=row[7],
+        )
+
+    def delete_album(self, *, id: str) -> None:
+        self._conn.execute(sqlalchemy.text(DELETE_ALBUM), {"p1": id})
+
+    def delete_album_artist(self, *, album_id: str, artist_id: str) -> None:
+        self._conn.execute(sqlalchemy.text(DELETE_ALBUM_ARTIST), {"p1": album_id, "p2": artist_id})
+
+    def delete_artist(self, *, id: str) -> None:
+        self._conn.execute(sqlalchemy.text(DELETE_ARTIST), {"p1": id})
+
+    def delete_listening_history(self, *, id: int) -> None:
+        self._conn.execute(sqlalchemy.text(DELETE_LISTENING_HISTORY), {"p1": id})
+
+    def delete_track(self, *, id: str) -> None:
+        self._conn.execute(sqlalchemy.text(DELETE_TRACK), {"p1": id})
+
+    def delete_track_artist(self, *, track_id: str, artist_id: str) -> None:
+        self._conn.execute(sqlalchemy.text(DELETE_TRACK_ARTIST), {"p1": track_id, "p2": artist_id})
+
+    def get_album(self, *, id: str) -> Optional[models.Album]:
+        row = self._conn.execute(sqlalchemy.text(GET_ALBUM), {"p1": id}).first()
+        if row is None:
+            return None
+        return models.Album(
+            id=row[0],
+            name=row[1],
+            album_type=row[2],
+            release_date=row[3],
+            total_tracks=row[4],
+            images=row[5],
+            external_urls=row[6],
+        )
+
+    def get_artist(self, *, id: str) -> Optional[models.Artist]:
+        row = self._conn.execute(sqlalchemy.text(GET_ARTIST), {"p1": id}).first()
+        if row is None:
+            return None
+        return models.Artist(
+            id=row[0],
+            name=row[1],
+            external_urls=row[2],
+            href=row[3],
+        )
+
+    def get_listening_history(self, *, id: int) -> Optional[models.ListeningHistory]:
+        row = self._conn.execute(sqlalchemy.text(GET_LISTENING_HISTORY), {"p1": id}).first()
+        if row is None:
+            return None
+        return models.ListeningHistory(
+            id=row[0],
+            track_id=row[1],
+            listened_at=row[2],
+            progress_ms=row[3],
+            context_type=row[4],
+            context_uri=row[5],
+            device_name=row[6],
+            device_type=row[7],
+        )
+
+    def get_track(self, *, id: str) -> Optional[models.Track]:
+        row = self._conn.execute(sqlalchemy.text(GET_TRACK), {"p1": id}).first()
+        if row is None:
+            return None
+        return models.Track(
+            id=row[0],
+            name=row[1],
+            album_id=row[2],
+            duration_ms=row[3],
+            track_number=row[4],
+            is_explicit=row[5],
+            popularity=row[6],
+            uri=row[7],
+        )
+
+    def list_albums(self) -> Iterator[models.Album]:
+        result = self._conn.execute(sqlalchemy.text(LIST_ALBUMS))
         for row in result:
-            yield models.Author(
+            yield models.Album(
                 id=row[0],
                 name=row[1],
-                bio=row[2],
+                album_type=row[2],
+                release_date=row[3],
+                total_tracks=row[4],
+                images=row[5],
+                external_urls=row[6],
             )
 
-    def update_author(self, *, id: int, name: str, bio: Optional[str]) -> None:
-        self._conn.execute(sqlalchemy.text(UPDATE_AUTHOR), {"p1": id, "p2": name, "p3": bio})
+    def list_artists(self) -> Iterator[models.Artist]:
+        result = self._conn.execute(sqlalchemy.text(LIST_ARTISTS))
+        for row in result:
+            yield models.Artist(
+                id=row[0],
+                name=row[1],
+                external_urls=row[2],
+                href=row[3],
+            )
+
+    def list_listening_history(self) -> Iterator[models.ListeningHistory]:
+        result = self._conn.execute(sqlalchemy.text(LIST_LISTENING_HISTORY))
+        for row in result:
+            yield models.ListeningHistory(
+                id=row[0],
+                track_id=row[1],
+                listened_at=row[2],
+                progress_ms=row[3],
+                context_type=row[4],
+                context_uri=row[5],
+                device_name=row[6],
+                device_type=row[7],
+            )
+
+    def list_tracks(self) -> Iterator[models.Track]:
+        result = self._conn.execute(sqlalchemy.text(LIST_TRACKS))
+        for row in result:
+            yield models.Track(
+                id=row[0],
+                name=row[1],
+                album_id=row[2],
+                duration_ms=row[3],
+                track_number=row[4],
+                is_explicit=row[5],
+                popularity=row[6],
+                uri=row[7],
+            )
+
+    def update_album(self, arg: UpdateAlbumParams) -> None:
+        self._conn.execute(sqlalchemy.text(UPDATE_ALBUM), {
+            "p1": arg.id,
+            "p2": arg.name,
+            "p3": arg.album_type,
+            "p4": arg.release_date,
+            "p5": arg.total_tracks,
+            "p6": arg.images,
+            "p7": arg.external_urls,
+        })
+
+    def update_artist(self, *, id: str, name: str, external_urls: Optional[Any], href: Optional[str]) -> None:
+        self._conn.execute(sqlalchemy.text(UPDATE_ARTIST), {
+            "p1": id,
+            "p2": name,
+            "p3": external_urls,
+            "p4": href,
+        })
+
+    def update_listening_history(self, arg: UpdateListeningHistoryParams) -> None:
+        self._conn.execute(sqlalchemy.text(UPDATE_LISTENING_HISTORY), {
+            "p1": arg.id,
+            "p2": arg.track_id,
+            "p3": arg.listened_at,
+            "p4": arg.progress_ms,
+            "p5": arg.context_type,
+            "p6": arg.context_uri,
+            "p7": arg.device_name,
+            "p8": arg.device_type,
+        })
+
+    def update_track(self, arg: UpdateTrackParams) -> None:
+        self._conn.execute(sqlalchemy.text(UPDATE_TRACK), {
+            "p1": arg.id,
+            "p2": arg.name,
+            "p3": arg.album_id,
+            "p4": arg.duration_ms,
+            "p5": arg.track_number,
+            "p6": arg.is_explicit,
+            "p7": arg.popularity,
+            "p8": arg.uri,
+        })
 
 
 class AsyncQuerier:
     def __init__(self, conn: sqlalchemy.ext.asyncio.AsyncConnection):
         self._conn = conn
 
-    async def create_author(self, *, name: str, bio: Optional[str]) -> Optional[models.Author]:
-        row = (await self._conn.execute(sqlalchemy.text(CREATE_AUTHOR), {"p1": name, "p2": bio})).first()
+    async def add_artist_to_album(self, *, album_id: str, artist_id: str) -> None:
+        await self._conn.execute(sqlalchemy.text(ADD_ARTIST_TO_ALBUM), {"p1": album_id, "p2": artist_id})
+
+    async def add_artist_to_track(self, *, track_id: str, artist_id: str) -> None:
+        await self._conn.execute(sqlalchemy.text(ADD_ARTIST_TO_TRACK), {"p1": track_id, "p2": artist_id})
+
+    async def create_album(self, arg: CreateAlbumParams) -> Optional[models.Album]:
+        row = (await self._conn.execute(sqlalchemy.text(CREATE_ALBUM), {
+            "p1": arg.id,
+            "p2": arg.name,
+            "p3": arg.album_type,
+            "p4": arg.release_date,
+            "p5": arg.total_tracks,
+            "p6": arg.images,
+            "p7": arg.external_urls,
+        })).first()
         if row is None:
             return None
-        return models.Author(
+        return models.Album(
             id=row[0],
             name=row[1],
-            bio=row[2],
+            album_type=row[2],
+            release_date=row[3],
+            total_tracks=row[4],
+            images=row[5],
+            external_urls=row[6],
         )
 
-    async def delete_author(self, *, id: int) -> None:
-        await self._conn.execute(sqlalchemy.text(DELETE_AUTHOR), {"p1": id})
-
-    async def get_author(self, *, id: int) -> Optional[models.Author]:
-        row = (await self._conn.execute(sqlalchemy.text(GET_AUTHOR), {"p1": id})).first()
+    async def create_artist(self, *, id: str, name: str, external_urls: Optional[Any], href: Optional[str]) -> Optional[models.Artist]:
+        row = (await self._conn.execute(sqlalchemy.text(CREATE_ARTIST), {
+            "p1": id,
+            "p2": name,
+            "p3": external_urls,
+            "p4": href,
+        })).first()
         if row is None:
             return None
-        return models.Author(
+        return models.Artist(
             id=row[0],
             name=row[1],
-            bio=row[2],
+            external_urls=row[2],
+            href=row[3],
         )
 
-    async def list_authors(self) -> AsyncIterator[models.Author]:
-        result = await self._conn.stream(sqlalchemy.text(LIST_AUTHORS))
+    async def create_listening_history(self, arg: CreateListeningHistoryParams) -> Optional[models.ListeningHistory]:
+        row = (await self._conn.execute(sqlalchemy.text(CREATE_LISTENING_HISTORY), {
+            "p1": arg.track_id,
+            "p2": arg.listened_at,
+            "p3": arg.progress_ms,
+            "p4": arg.context_type,
+            "p5": arg.context_uri,
+            "p6": arg.device_name,
+            "p7": arg.device_type,
+        })).first()
+        if row is None:
+            return None
+        return models.ListeningHistory(
+            id=row[0],
+            track_id=row[1],
+            listened_at=row[2],
+            progress_ms=row[3],
+            context_type=row[4],
+            context_uri=row[5],
+            device_name=row[6],
+            device_type=row[7],
+        )
+
+    async def create_track(self, arg: CreateTrackParams) -> Optional[models.Track]:
+        row = (await self._conn.execute(sqlalchemy.text(CREATE_TRACK), {
+            "p1": arg.id,
+            "p2": arg.name,
+            "p3": arg.album_id,
+            "p4": arg.duration_ms,
+            "p5": arg.track_number,
+            "p6": arg.is_explicit,
+            "p7": arg.popularity,
+            "p8": arg.uri,
+        })).first()
+        if row is None:
+            return None
+        return models.Track(
+            id=row[0],
+            name=row[1],
+            album_id=row[2],
+            duration_ms=row[3],
+            track_number=row[4],
+            is_explicit=row[5],
+            popularity=row[6],
+            uri=row[7],
+        )
+
+    async def delete_album(self, *, id: str) -> None:
+        await self._conn.execute(sqlalchemy.text(DELETE_ALBUM), {"p1": id})
+
+    async def delete_album_artist(self, *, album_id: str, artist_id: str) -> None:
+        await self._conn.execute(sqlalchemy.text(DELETE_ALBUM_ARTIST), {"p1": album_id, "p2": artist_id})
+
+    async def delete_artist(self, *, id: str) -> None:
+        await self._conn.execute(sqlalchemy.text(DELETE_ARTIST), {"p1": id})
+
+    async def delete_listening_history(self, *, id: int) -> None:
+        await self._conn.execute(sqlalchemy.text(DELETE_LISTENING_HISTORY), {"p1": id})
+
+    async def delete_track(self, *, id: str) -> None:
+        await self._conn.execute(sqlalchemy.text(DELETE_TRACK), {"p1": id})
+
+    async def delete_track_artist(self, *, track_id: str, artist_id: str) -> None:
+        await self._conn.execute(sqlalchemy.text(DELETE_TRACK_ARTIST), {"p1": track_id, "p2": artist_id})
+
+    async def get_album(self, *, id: str) -> Optional[models.Album]:
+        row = (await self._conn.execute(sqlalchemy.text(GET_ALBUM), {"p1": id})).first()
+        if row is None:
+            return None
+        return models.Album(
+            id=row[0],
+            name=row[1],
+            album_type=row[2],
+            release_date=row[3],
+            total_tracks=row[4],
+            images=row[5],
+            external_urls=row[6],
+        )
+
+    async def get_artist(self, *, id: str) -> Optional[models.Artist]:
+        row = (await self._conn.execute(sqlalchemy.text(GET_ARTIST), {"p1": id})).first()
+        if row is None:
+            return None
+        return models.Artist(
+            id=row[0],
+            name=row[1],
+            external_urls=row[2],
+            href=row[3],
+        )
+
+    async def get_listening_history(self, *, id: int) -> Optional[models.ListeningHistory]:
+        row = (await self._conn.execute(sqlalchemy.text(GET_LISTENING_HISTORY), {"p1": id})).first()
+        if row is None:
+            return None
+        return models.ListeningHistory(
+            id=row[0],
+            track_id=row[1],
+            listened_at=row[2],
+            progress_ms=row[3],
+            context_type=row[4],
+            context_uri=row[5],
+            device_name=row[6],
+            device_type=row[7],
+        )
+
+    async def get_track(self, *, id: str) -> Optional[models.Track]:
+        row = (await self._conn.execute(sqlalchemy.text(GET_TRACK), {"p1": id})).first()
+        if row is None:
+            return None
+        return models.Track(
+            id=row[0],
+            name=row[1],
+            album_id=row[2],
+            duration_ms=row[3],
+            track_number=row[4],
+            is_explicit=row[5],
+            popularity=row[6],
+            uri=row[7],
+        )
+
+    async def list_albums(self) -> AsyncIterator[models.Album]:
+        result = await self._conn.stream(sqlalchemy.text(LIST_ALBUMS))
         async for row in result:
-            yield models.Author(
+            yield models.Album(
                 id=row[0],
                 name=row[1],
-                bio=row[2],
+                album_type=row[2],
+                release_date=row[3],
+                total_tracks=row[4],
+                images=row[5],
+                external_urls=row[6],
             )
 
-    async def update_author(self, *, id: int, name: str, bio: Optional[str]) -> None:
-        await self._conn.execute(sqlalchemy.text(UPDATE_AUTHOR), {"p1": id, "p2": name, "p3": bio})
+    async def list_artists(self) -> AsyncIterator[models.Artist]:
+        result = await self._conn.stream(sqlalchemy.text(LIST_ARTISTS))
+        async for row in result:
+            yield models.Artist(
+                id=row[0],
+                name=row[1],
+                external_urls=row[2],
+                href=row[3],
+            )
+
+    async def list_listening_history(self) -> AsyncIterator[models.ListeningHistory]:
+        result = await self._conn.stream(sqlalchemy.text(LIST_LISTENING_HISTORY))
+        async for row in result:
+            yield models.ListeningHistory(
+                id=row[0],
+                track_id=row[1],
+                listened_at=row[2],
+                progress_ms=row[3],
+                context_type=row[4],
+                context_uri=row[5],
+                device_name=row[6],
+                device_type=row[7],
+            )
+
+    async def list_tracks(self) -> AsyncIterator[models.Track]:
+        result = await self._conn.stream(sqlalchemy.text(LIST_TRACKS))
+        async for row in result:
+            yield models.Track(
+                id=row[0],
+                name=row[1],
+                album_id=row[2],
+                duration_ms=row[3],
+                track_number=row[4],
+                is_explicit=row[5],
+                popularity=row[6],
+                uri=row[7],
+            )
+
+    async def update_album(self, arg: UpdateAlbumParams) -> None:
+        await self._conn.execute(sqlalchemy.text(UPDATE_ALBUM), {
+            "p1": arg.id,
+            "p2": arg.name,
+            "p3": arg.album_type,
+            "p4": arg.release_date,
+            "p5": arg.total_tracks,
+            "p6": arg.images,
+            "p7": arg.external_urls,
+        })
+
+    async def update_artist(self, *, id: str, name: str, external_urls: Optional[Any], href: Optional[str]) -> None:
+        await self._conn.execute(sqlalchemy.text(UPDATE_ARTIST), {
+            "p1": id,
+            "p2": name,
+            "p3": external_urls,
+            "p4": href,
+        })
+
+    async def update_listening_history(self, arg: UpdateListeningHistoryParams) -> None:
+        await self._conn.execute(sqlalchemy.text(UPDATE_LISTENING_HISTORY), {
+            "p1": arg.id,
+            "p2": arg.track_id,
+            "p3": arg.listened_at,
+            "p4": arg.progress_ms,
+            "p5": arg.context_type,
+            "p6": arg.context_uri,
+            "p7": arg.device_name,
+            "p8": arg.device_type,
+        })
+
+    async def update_track(self, arg: UpdateTrackParams) -> None:
+        await self._conn.execute(sqlalchemy.text(UPDATE_TRACK), {
+            "p1": arg.id,
+            "p2": arg.name,
+            "p3": arg.album_id,
+            "p4": arg.duration_ms,
+            "p5": arg.track_number,
+            "p6": arg.is_explicit,
+            "p7": arg.popularity,
+            "p8": arg.uri,
+        })

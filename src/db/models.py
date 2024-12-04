@@ -2,11 +2,60 @@
 # versions:
 #   sqlc v1.27.0
 import dataclasses
-from typing import Optional
+import datetime
+from typing import Any, Optional
 
 
 @dataclasses.dataclass()
-class Author:
-    id: int
+class Album:
+    id: str
     name: str
-    bio: Optional[str]
+    album_type: Optional[str]
+    release_date: Optional[datetime.date]
+    total_tracks: Optional[int]
+    images: Optional[Any]
+    external_urls: Optional[Any]
+
+
+@dataclasses.dataclass()
+class AlbumArtist:
+    album_id: str
+    artist_id: str
+
+
+@dataclasses.dataclass()
+class Artist:
+    id: str
+    name: str
+    external_urls: Optional[Any]
+    href: Optional[str]
+
+
+@dataclasses.dataclass()
+class ListeningHistory:
+    id: int
+    track_id: str
+    listened_at: datetime.datetime
+    progress_ms: Optional[int]
+    context_type: Optional[str]
+    context_uri: Optional[str]
+    device_name: Optional[str]
+    device_type: Optional[str]
+
+
+@dataclasses.dataclass()
+class Track:
+    id: str
+    name: str
+    album_id: Optional[str]
+    duration_ms: Optional[int]
+    track_number: Optional[int]
+    is_explicit: Optional[bool]
+    popularity: Optional[int]
+    uri: Optional[str]
+
+
+@dataclasses.dataclass()
+class TrackArtist:
+    track_id: str
+    artist_id: str

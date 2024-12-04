@@ -3,6 +3,7 @@ import re
 
 import sqlalchemy
 import sqlalchemy.ext.asyncio
+import sqlparse  # type: ignore[import-untyped]
 
 from spotify_thing import config
 
@@ -29,14 +30,22 @@ async def main():
 
         # Drop all tables
         for table_name in table_names:
-            res = await conn.execute(sqlalchemy.text(f"DROP TABLE {table_name}"))
+            res = await conn.execute(
+                sqlalchemy.text(f"DROP TABLE IF EXISTS {table_name} CASCADE;")
+            )
             print(res)
 
         print("Tables dropped")
 
         # Create the tables
-        res = await conn.execute(sqlalchemy.text(schema))
-        print(res)
+        statements = sqlparse.split(schema)
+
+        for statement in statements:
+            if statement.strip() == "":
+                continue
+
+            res = await conn.execute(sqlalchemy.text(statement))
+            print(res)
 
         print("Tables created")
 
